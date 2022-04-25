@@ -1,0 +1,29 @@
+{
+  "name": "ts-helpers",
+  "description": "TypeScript helper library",
+  "version": "0.0.0",
+  "main": "dist/index.js",
+  "private": "false",
+  "module": "dist/index.js",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "devDependencies": {
+    "typescript": "^4.6.3"
+  },
+  "scripts": {
+    "prebuild": "rm -rf dist",
+    "build": "./node_modules/typescript/bin/tsc",
+    "prepublish": "npm run build && npm version patch",
+    "publish": "git push"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/i12345/ts-helpers.git"
+  },
+  "author": "Isaac Valdez",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/i12345/ts-helpers/issues"
+  },
+  "homepage": "https://github.com/i12345/ts-helpers#readme"
+}
