@@ -1,10 +1,12 @@
+import { ObjKey } from "./obj-key"
 import { PropertyPathTreeNode, ReferencePathTreeNode } from "./reference-paths"
 
 export class ObjectGraphUtils {
     /**
-     * Mutates an object graph into a JSON object that can be converted back
-     * into an object graph by `ObjectGraphUtils.graphify()`.
-     * @param graph the graph to mutate into a json object
+     * Converts an object graph into a JSON object that can be converted back
+     * into an object graph by `ObjectGraphUtils.graphify()`. The object graph
+     * is possibly mutated in the process.
+     * @param graph the graph to convert into a json object
      * @returns the JSON object
      */
     public static jsonify(graph: object): object {
@@ -14,13 +16,48 @@ export class ObjectGraphUtils {
                 primaryPath: ReferencePathTreeNode,
             }>()
 
+        let graphContainer = { graph }
+
         // change structure
-        ObjectGraphUtils.jsonify_recurse('root', graph, objMap)
+        ObjectGraphUtils.jsonify_recurse(
+                'root',
+                {
+                    obj: graphContainer,
+                    key: 'graph'
+                },
+                objMap
+            )
 
         // render json objects
         for(const [obj, referenceProperties] of objMap.entries()) {
             if(referenceProperties.refCount == 1) {
                 objMap.delete(obj)
+            }
+        }
+
+        {
+            let unescapedPathNodes = new Set<ReferencePathTreeNode>()
+            unescapedPathNodes.add('root')
+
+            let pathNodesToCheckUnescaping = new Set<PropertyPathTreeNode>()
+            for(const { primaryPath } of objMap.values()) {
+                if(primaryPath instanceof PropertyPathTreeNode) {
+                    pathNodesToCheckUnescaping.add(primaryPath)
+                }
+            }
+
+            for(const pathNode of pathNodesToCheckUnescaping) {
+                if(!unescapedPathNodes.has(pathNode)) {
+                    if(pathNode.property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE)) {
+                        pathNode.property = this.JSON_CONSTANTS_KEYS_PREFIX + pathNode.property.substring(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE.length)
+                    }
+
+                    if(pathNode.parent != 'root') {
+                        pathNodesToCheckUnescaping.add(pathNode.parent)
+                    }
+
+                    unescapedPathNodes.add(pathNode)
+                }
             }
         }
 
@@ -30,57 +67,112 @@ export class ObjectGraphUtils {
         }
 
         return ({
-                [ObjectGraphUtils.JSON_CONSTANTS_KEYS_ROOT]: graph,
+                [ObjectGraphUtils.JSON_CONSTANTS_KEYS_ROOT]: graphContainer.graph,
                 [ObjectGraphUtils.JSON_CONSTANTS_KEYS_OBJMAP]: objMap_json
             })
     }
 
-    static jsonify_recurse(
+    private static jsonify_recurse(
             objPath: ReferencePathTreeNode,
-            obj: any,
+            node: ObjKey,
             objMap: Map<object, {
                     id: number,
                     refCount: number,
                     primaryPath: ReferencePathTreeNode,
                 }>
         ): void {
+        let obj = node.obj[node.key]
+
         objMap.set(obj, {
-            id: objMap.size,
-            primaryPath: objPath,
-            refCount: 1
-        })
+                id: objMap.size,
+                primaryPath: objPath,
+                refCount: 1
+            })
+
+        if(obj instanceof Array) {
+            let arr = obj
+            obj = {}
+
+            obj[this.JSON_CONSTANTS_KEYS_OBJTYPE] = this.JSON_CONSTANTS_OBJTYPE_ARRAY
+            for(let i = 0; i < arr.length; i++) {
+                obj[i.toString()] = arr[i]
+            }
+
+            obj[this.JSON_CONSTANTS_KEYS_LENGTH] = arr.length
+
+            node.obj[node.key] = obj
+        }
+        else {
+            let redeclaredObj: any = null
+            for(const property of Object.keys(obj)) {
+                if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)) {
+                    if(!redeclaredObj) { redeclaredObj = {} }
+
+                    redeclaredObj[this.JSON_CONSTANTS_PREFIXES_ESCAPE + property.substring(this.JSON_CONSTANTS_KEYS_PREFIX.length)] = obj[property]
+                }
+            }
+
+            if(redeclaredObj) {
+                redeclaredObj = {
+                    ...redeclaredObj,
+                    ...Object.fromEntries(
+                            Object.entries(obj)
+                            .filter(
+                                    ([property, value]) =>
+                                        !property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)
+                                )
+                        )
+                }
+
+                obj = redeclaredObj
+                node.obj[node.key] = obj
+            }
+        }
 
         for(const property of Object.getOwnPropertyNames(obj)) {
+            if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)) {
+                continue;
+            }
+
             const propertyValue = obj[property]
             
             if(typeof propertyValue == 'string') {
-                if(propertyValue.startsWith(ObjectGraphUtils.JSON_CONSTANTS_PREFIXES_ID)) {
-                    obj[property] = ObjectGraphUtils.JSON_CONSTANTS_PREFIXES_STRING_NOT_ID + propertyValue
+                if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_ESCAPE)) {
+                    obj[property] = this.JSON_CONSTANTS_PREFIXES_STRING + propertyValue
                 }
             }
             else if(typeof propertyValue == 'object') {
-                let transformedObj = objMap.get(propertyValue)
-                if(transformedObj !== undefined) {
-                    obj[property] = ObjectGraphUtils.JSON_CONSTANTS_PREFIXES_ID + (transformedObj.id)
-                    transformedObj.refCount++
+                if(propertyValue instanceof Date) {
+                    obj[property] = this.JSON_CONSTANTS_PREFIXES_DATE + propertyValue.getTime().toString()
                 }
                 else {
-                    this.jsonify_recurse(
-                            new PropertyPathTreeNode(
-                                    objPath,
-                                    property
-                                ),
-                            propertyValue,
-                            objMap
-                        )
+                    let transformedObj = objMap.get(propertyValue)
+                    if(transformedObj !== undefined) {
+                        obj[property] = this.JSON_CONSTANTS_PREFIXES_ID + (transformedObj.id)
+                        transformedObj.refCount++
+                    }
+                    else {
+                        this.jsonify_recurse(
+                                new PropertyPathTreeNode(
+                                        objPath,
+                                        property
+                                    ),
+                                {
+                                    obj: obj,
+                                    key: property
+                                },
+                                objMap
+                            )
+                    }
                 }
             }
         }
     }
 
     /**
-     * Mutates a JSON object into an object graph.
-     * @param json the json object to mutate into a graph
+     * Converts a JSON object into an object graph, possibly mutating it in the
+     * process.
+     * @param json the json object to convert into an object graph
      */
     public static graphify(json: any): object {
         let {
@@ -96,11 +188,15 @@ export class ObjectGraphUtils {
                 value_referencedObjID: number
             }[] = []
 
+        let rootGraph = { graph: root }
+
         this.graphify_recurse(
-                root,
+                {
+                    obj: rootGraph,
+                    key: 'graph'
+                },
                 'root',
-                finalFillIn,
-                new Set()
+                finalFillIn
             )
 
         const objMap = new Map<number, object>()
@@ -123,27 +219,66 @@ export class ObjectGraphUtils {
     }
 
     private static graphify_recurse(
-            obj: any,
+            node: ObjKey,
             currentPath: ReferencePathTreeNode,
             finalFillIn: {
                 pathToFillIn: PropertyPathTreeNode,
                 value_referencedObjID: number
-            }[],
-            alreadyChecked: Set<object>
+            }[]
         ): void {
-        if(alreadyChecked.has(obj)) {
-            return
+        let obj = node.obj[node.key]
+        
+        const type = obj[this.JSON_CONSTANTS_KEYS_OBJTYPE]
+        if(type !== undefined) {
+            switch(type) {
+                case this.JSON_CONSTANTS_OBJTYPE_ARRAY:
+                    {
+                        let arr = new Array(+obj[this.JSON_CONSTANTS_KEYS_LENGTH])
+                        for(let i = 0; i < arr.length; i++) {
+                            arr[i] = obj[i]
+                        }
+                        obj = arr
+                        node.obj[node.key] = arr
+                    }
+                    break;
+
+                default:
+                    throw new Error("unrecognized object type")
+            }
         }
 
-        alreadyChecked.add(obj)
+        let redeclaredObj: any = null
+        for(const property of Object.keys(obj)) {
+            if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE)) {
+                if(!redeclaredObj) { redeclaredObj = {} }
+
+                redeclaredObj[property.substring(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE.length)] = obj[property]
+            }
+        }
+
+        if(redeclaredObj) {
+            redeclaredObj = {
+                ...redeclaredObj,
+                ...Object.fromEntries(
+                        Object.entries(obj)
+                        .filter(
+                                ([property, value]) =>
+                                    !property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)
+                            )
+                    )
+            }
+
+            obj = redeclaredObj
+            node.obj[node.key] = obj
+        }
 
         for(const property of Object.keys(obj)) {
             let propertyValue = obj[property]
             let propertyPath = new PropertyPathTreeNode(currentPath, property)
 
             if(typeof propertyValue == 'string') {
-                if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_STRING_NOT_ID)) {
-                    obj[property] = propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_STRING_NOT_ID.length)
+                if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_STRING)) {
+                    obj[property] = propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_STRING.length)
                 }
                 else if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_ID)) {
                     const referencedID = +(propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_ID.length))
@@ -153,20 +288,32 @@ export class ObjectGraphUtils {
                             value_referencedObjID: referencedID
                         })
                 }
+                else if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_DATE)) {
+                    obj[property] = new Date(+(propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_DATE.length)))
+                }
             }
             else if(typeof propertyValue == 'object') {
                 this.graphify_recurse(
-                        propertyValue,
+                        {
+                            obj: obj,
+                            key: property
+                        },
                         propertyPath,
-                        finalFillIn,
-                        alreadyChecked
+                        finalFillIn
                     )
             }
         }
     }
 
-    private static readonly JSON_CONSTANTS_KEYS_ROOT = 'root'
-    private static readonly JSON_CONSTANTS_KEYS_OBJMAP = 'objects'
-    private static readonly JSON_CONSTANTS_PREFIXES_ID = '#'
-    private static readonly JSON_CONSTANTS_PREFIXES_STRING_NOT_ID = '##'
+    private static readonly JSON_CONSTANTS_KEYS_ROOT = '_root'
+    private static readonly JSON_CONSTANTS_KEYS_OBJMAP = '_objects'
+    private static readonly JSON_CONSTANTS_KEYS_PREFIX = '_'
+    private static readonly JSON_CONSTANTS_KEYS_PREFIX_ESCAPE = '__'
+    private static readonly JSON_CONSTANTS_KEYS_OBJTYPE = '_type'
+    private static readonly JSON_CONSTANTS_KEYS_LENGTH = '_length'
+    private static readonly JSON_CONSTANTS_OBJTYPE_ARRAY = 'array'
+    private static readonly JSON_CONSTANTS_PREFIXES_ESCAPE = '#'
+    private static readonly JSON_CONSTANTS_PREFIXES_ID = '#id:'
+    private static readonly JSON_CONSTANTS_PREFIXES_STRING = '#str:'
+    private static readonly JSON_CONSTANTS_PREFIXES_DATE = '#date:'
 }

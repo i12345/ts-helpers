@@ -1,2 +1,5 @@
+export * from './obj-key'
 export * from './smart-array'
 export * from './filtered-array'
+export * from './reference-paths'
+export * from './object-graph-utils'

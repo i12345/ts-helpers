@@ -6,12 +6,6 @@ export class PropertyPathTreeNode {
             public property: string
         ){}
 
-    toString() {
-        return this.parent == 'root' ?
-            this.property :
-            `${this.parent}.${this.property}`
-    }
-
     static getValue(root: any, path: ReferencePathTreeNode): any {
         let properties: string[] = []
         while(path !== 'root') {
@@ -34,7 +28,7 @@ export class PropertyPathTreeNode {
         
         let reference = <ReferencePathTreeNode>path
         while(reference !== 'root') {
-            const propertyPathTreeNode = <PropertyPathTreeNode>path
+            const propertyPathTreeNode = <PropertyPathTreeNode>reference
             properties.push(propertyPathTreeNode.property)
             reference = propertyPathTreeNode.parent
         }
@@ -65,5 +59,11 @@ export class PropertyPathTreeNode {
                         )
                 )
         }
+    }
+
+    toString() {
+        return this.parent == 'root' ?
+            this.property :
+            `${this.parent}.${this.property}`
     }
 }
