@@ -27,6 +27,8 @@
     "build": "./node_modules/typescript/bin/tsc",
     "prepublish": "npm run build && npm version patch",
     "publish": "git push",
+    
+    "pretest": "npm run build",
     "test": "mocha -n \"experimental-specifier-resolution=node\" -n \"loader=ts-node/esm\" -r source-map-support test/**/*.ts",
     "test:tap": "mocha -n \"experimental-specifier-resolution=node\" -n \"loader=ts-node/esm\" -r source-map-support --reporter mocha-tap-reporter test/**/*.ts"
   },

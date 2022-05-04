@@ -1,4 +1,5 @@
 import { ObjKey } from "./obj-key"
+import { ObjectGraphMap } from "./object-graph-map"
 import { PropertyPathTreeNode, ReferencePathTreeNode } from "./reference-paths"
 
 export class ObjectGraphUtils {
@@ -15,7 +16,7 @@ export class ObjectGraphUtils {
                 refCount: number,
                 primaryPath: ReferencePathTreeNode,
             }>()
-
+            
         let graphContainer = { graph }
 
         // change structure
@@ -75,7 +76,7 @@ export class ObjectGraphUtils {
     private static jsonify_recurse(
             objPath: ReferencePathTreeNode,
             node: ObjKey,
-            objMap: Map<object, {
+            objMap: ObjectGraphMap<{
                     id: number,
                     refCount: number,
                     primaryPath: ReferencePathTreeNode,
