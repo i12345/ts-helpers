@@ -1,7 +1,7 @@
 {
   "name": "ts-helpers",
   "description": "TypeScript helper library",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "dist/index.js",
   "private": "false",
   "module": "dist/index.js",
