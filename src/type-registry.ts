@@ -9,21 +9,21 @@ export class TypeRegistry<T> {
 
     private _literalMap = new Map<TypeofType, T>()
 
-    types() {
+    get types() {
         return [
                 ...this._literalMap.keys(),
                 ...this._map.keys()
             ]
     }
 
-    values() {
+    get values() {
         return [
                 ...this._literalMap.values(),
                 ...this._map.values()
             ]
     }
 
-    entries(): [TypeofType | Function, T][] {
+    get entries(): [TypeofType | Function, T][] {
         return [
                 ...this._literalMap.entries(),
                 ...this._map.entries()
