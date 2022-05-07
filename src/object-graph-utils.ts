@@ -189,11 +189,11 @@ export class ObjectGraphUtils {
                 value_referencedObjID: number
             }[] = []
 
-        let rootGraph = { graph: root }
+        let rootGraphContainer = { graph: root }
 
         this.graphify_recurse(
                 {
-                    obj: rootGraph,
+                    obj: rootGraphContainer,
                     key: 'graph'
                 },
                 'root',
@@ -216,7 +216,7 @@ export class ObjectGraphUtils {
                 )
         }
 
-        return root
+        return rootGraphContainer.graph
     }
 
     private static graphify_recurse(

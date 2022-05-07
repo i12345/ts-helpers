@@ -1,8 +1,7 @@
 import { suite, test } from '@testdeck/mocha';
-import assert from 'assert';
+import { assert } from 'chai';
 import { ObjectGraphUtils } from '../src'
 import v8 from 'v8'
-import _ from 'underscore';
 
 @suite
 class ObjectGraphUtilsTest {
@@ -133,6 +132,22 @@ class ObjectGraphUtilsTest {
         assert(Object.is(db.airports[0], db.flights[1].from))
     }
 
+    test_object_with_undefined_1() {
+        this.testSaveAndLoad({ a: undefined })
+    }
+
+    test_object_with_undefined_2() {
+        this.testSaveAndLoad({ a: { b: undefined } })
+    }
+
+    test_object_with_undefined_and_null_1() {
+        this.testSaveAndLoad({ a: undefined, b: null })
+    }
+
+    test_object_with_undefined_and_null_2() {
+        this.testSaveAndLoad({ a: { b: undefined }, c: null })
+    }
+
     testSaveAndLoad(obj: object) {
         let clonedObj = v8.deserialize(v8.serialize(obj))
         assert(clonedObj !== obj)
@@ -140,6 +155,6 @@ class ObjectGraphUtilsTest {
         let json = ObjectGraphUtils.jsonify(obj)
         let restoredObj = ObjectGraphUtils.graphify(json)
 
-        _.isEqual(clonedObj, restoredObj)
+        assert.deepEqual(restoredObj, clonedObj)
     }
 }

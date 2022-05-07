@@ -44,26 +44,27 @@ export class PropertyPathTreeNode {
     }
 
     static parse(path: string): ReferencePathTreeNode {
-        const trimmed = path.trim()
-        if(trimmed.length == 0) {
-            return 'root'
+        if(!path.startsWith("root")) {
+            throw new Error('path must begin with "root"')
         }
-        else {
-            return (
-                trimmed
+
+        return (
+                path
                     .split('.')
+                    .slice(1)
                     .reduce<ReferencePathTreeNode>(
-                            (path, property) =>
-                                new PropertyPathTreeNode(path, property),
+                            (growingPath, property) =>
+                                new PropertyPathTreeNode(growingPath, property),
                             'root'
                         )
-                )
-        }
+            )
     }
 
     toString() {
-        return this.parent == 'root' ?
-            this.property :
-            `${this.parent}.${this.property}`
+        return `${this.parent}.${this.property}`
+    }
+
+    get [Symbol.toStringTag]() {
+        return this.toString()
     }
 }
