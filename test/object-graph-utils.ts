@@ -132,6 +132,81 @@ class ObjectGraphUtilsTest {
         assert(Object.is(db.airports[0], db.flights[1].from))
     }
 
+    @test
+    test_mesh_2() {
+        class ProgrammingLanguage {
+            name?: string
+            kind?: 'declarative' | 'imperative'
+            basedOn?: ProgrammingLanguage
+        }
+
+        class ProgrammingProject {
+            name?: string
+            languages: ProgrammingLanguage[] = []
+        }
+
+        let languages: ProgrammingLanguage[] = [
+                {
+                    name: 'C',
+                    kind: 'imperative'
+                },
+                {
+                    name: 'Prolog',
+                    kind: 'declarative'
+                },
+                {
+                    name: 'ECMAScript',
+                    kind: 'imperative'
+                },
+                {
+                    name: 'SQL',
+                    kind: 'declarative'
+                }
+            ]
+
+        const getLanguage = (name: string) =>
+            languages.find(language => language.name == name)!
+
+        languages.push(
+                {
+                    name: 'C++',
+                    kind: 'imperative',
+                    basedOn: getLanguage('C')
+                },
+                {
+                    name: 'TypeScript',
+                    kind: 'imperative',
+                    basedOn: getLanguage('ECMAScript')
+                },
+            )
+
+        let projects: ProgrammingProject[] = [
+            {
+                name: 'Farming game',
+                languages: [
+                    getLanguage('TypeScript'),
+                    getLanguage('SQL')
+                ]
+            },
+            {
+                name: 'DB managment system',
+                languages: [
+                    getLanguage('C#'),
+                    getLanguage('SQL'),
+                    getLanguage('Prolog')
+                ]
+            },
+            {
+                name: 'Keybaord driver',
+                languages: [
+                    getLanguage('C')
+                ]
+            }
+        ]
+
+        this.testSaveAndLoad(projects)
+    }
+
     test_object_with_undefined_1() {
         this.testSaveAndLoad({ a: undefined })
     }
