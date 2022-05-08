@@ -12,4 +12,20 @@ export namespace GenericObjects {
 
         return obj[key] ?? <V>objOrAll
     }
+
+    export function filterFromObject<
+            SubType extends { [K in keyof SubType]: SuperType[K] },
+            SuperType extends SubType
+        >(
+            superObj: SuperType,
+            filterKeys: (keyof SubType)[]
+        ): SubType {
+        return <SubType>
+            GenericObjects.fromEntries(
+                    filterKeys.map(
+                            subProp =>
+                                [subProp, superObj[subProp]]
+                        )
+                )
+    }
 }
