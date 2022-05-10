@@ -1,3 +1,5 @@
+import { filterItems_IncludeExcludeListOrNone, IncludeExcludeListOrNone } from "./include-exclude-list-or-none"
+
 export namespace GenericObjects {
     export function fromEntries<K, V>(entries: [keyof K, V][]): { [key in keyof K]: V } {
         return <{ [key in keyof K]: V }>Object.fromEntries(entries)
@@ -27,5 +29,19 @@ export namespace GenericObjects {
                                 [subProp, superObj[subProp]]
                         )
                 )
+    }
+
+    export function getKeys<T extends object>(
+            obj: T,
+            filter?: IncludeExcludeListOrNone<keyof T>
+        ): (keyof T)[] {
+        const keys = <(keyof T)[]>[
+                ...Object.getOwnPropertyNames(obj),
+                ...Object.getOwnPropertySymbols(obj)
+            ]
+
+        return filter ?
+            filterItems_IncludeExcludeListOrNone(keys, filter) :
+            keys
     }
 }
