@@ -1,5 +1,5 @@
 export type ObjKey<
-        T extends object = { [key: PropertyKey]: any },
+        T = any,
         K extends keyof T = keyof T
     > = {
         obj: T
