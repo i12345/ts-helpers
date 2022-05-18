@@ -84,6 +84,11 @@ export class ObjectGraphUtils {
         ): void {
         let obj = node.obj[node.key]
 
+        if(obj === null ||
+            obj === undefined) {
+            return
+        }
+
         objMap.set(obj, {
                 id: objMap.size,
                 primaryPath: objPath,
@@ -141,6 +146,17 @@ export class ObjectGraphUtils {
                 if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_ESCAPE)) {
                     obj[property] = this.JSON_CONSTANTS_PREFIXES_STRING + propertyValue
                 }
+            }
+            else if(typeof propertyValue == 'symbol') {
+                const symbolKey = Symbol.keyFor(propertyValue)
+                if(symbolKey === undefined) {
+                    throw new Error("cannot currently jsonify symbols not registered with global symbol registry")
+                }
+
+                obj[property] = this.JSON_CONSTANTS_PREFIXES_SYMBOL + symbolKey
+            }
+            else if(typeof propertyValue == 'undefined') {
+                obj[property] = this.JSON_CONSTANTS_PREFIXES_UNDEFINED
             }
             else if(typeof propertyValue == 'object') {
                 if(propertyValue instanceof Date) {
@@ -229,6 +245,11 @@ export class ObjectGraphUtils {
         ): void {
         let obj = node.obj[node.key]
         
+        if(obj === null ||
+            obj === undefined) {
+            return
+        }
+
         const type = obj[this.JSON_CONSTANTS_KEYS_OBJTYPE]
         if(type !== undefined) {
             switch(type) {
@@ -281,6 +302,12 @@ export class ObjectGraphUtils {
                 if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_STRING)) {
                     obj[property] = propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_STRING.length)
                 }
+                else if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_SYMBOL)) {
+                    obj[property] = Symbol.for(propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_SYMBOL.length))
+                }
+                else if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_UNDEFINED)) {
+                    obj[property] = undefined
+                }
                 else if(propertyValue.startsWith(this.JSON_CONSTANTS_PREFIXES_ID)) {
                     const referencedID = +(propertyValue.substring(this.JSON_CONSTANTS_PREFIXES_ID.length))
                     
@@ -313,8 +340,12 @@ export class ObjectGraphUtils {
     private static readonly JSON_CONSTANTS_KEYS_OBJTYPE = '_type'
     private static readonly JSON_CONSTANTS_KEYS_LENGTH = '_length'
     private static readonly JSON_CONSTANTS_OBJTYPE_ARRAY = 'array'
+    private static readonly JSON_CONSTANTS_OBJTYPE_SET = 'set'
+    private static readonly JSON_CONSTANTS_OBJTYPE_MAP = 'map'
     private static readonly JSON_CONSTANTS_PREFIXES_ESCAPE = '#'
     private static readonly JSON_CONSTANTS_PREFIXES_ID = '#id:'
     private static readonly JSON_CONSTANTS_PREFIXES_STRING = '#str:'
+    private static readonly JSON_CONSTANTS_PREFIXES_SYMBOL = '#sym:'
+    private static readonly JSON_CONSTANTS_PREFIXES_UNDEFINED = '#undefined'
     private static readonly JSON_CONSTANTS_PREFIXES_DATE = '#date:'
 }
