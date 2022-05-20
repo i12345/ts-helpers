@@ -83,30 +83,36 @@ export class ObjectGraphUtils {
                 }>
         ): void {
         let obj = node.obj[node.key]
-
-        if(obj === null ||
-            obj === undefined) {
+        
+        if(obj === null) {
             return
         }
 
+        const objRef = objMap.get(obj)
+        if(objRef !== undefined) {
+            node.obj[node.key] = this.JSON_CONSTANTS_PREFIXES_ID + objRef.id
+            objRef.refCount++
+
+            return
+        }
+        
         objMap.set(obj, {
                 id: objMap.size,
                 primaryPath: objPath,
                 refCount: 1
             })
 
-        if(obj instanceof Array) {
-            let arr = obj
-            obj = {}
-
-            obj[this.JSON_CONSTANTS_KEYS_OBJTYPE] = this.JSON_CONSTANTS_OBJTYPE_ARRAY
-            for(let i = 0; i < arr.length; i++) {
-                obj[i.toString()] = arr[i]
+        if(obj instanceof Set) {
+            node.obj[node.key] = obj = {
+                [this.JSON_CONSTANTS_KEYS_OBJTYPE]: this.JSON_CONSTANTS_OBJTYPE_SET,
+                values: Array.from(obj.values())
             }
-
-            obj[this.JSON_CONSTANTS_KEYS_LENGTH] = arr.length
-
-            node.obj[node.key] = obj
+        }
+        else if(obj instanceof Map) {
+            node.obj[node.key] = obj = {
+                [this.JSON_CONSTANTS_KEYS_OBJTYPE]: this.JSON_CONSTANTS_OBJTYPE_MAP,
+                entries: Array.from(obj.entries())
+            }
         }
         else {
             let redeclaredObj: any = null
@@ -130,12 +136,12 @@ export class ObjectGraphUtils {
                         )
                 }
 
-                obj = redeclaredObj
-                node.obj[node.key] = obj
+                node.obj[node.key] = obj = redeclaredObj
             }
         }
 
-        for(const property of Object.getOwnPropertyNames(obj)) {
+        let properties = Object.getOwnPropertyNames(obj).filter(property => Object.getOwnPropertyDescriptor(obj, property)?.enumerable ?? true)
+        for(const property of properties) {
             if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)) {
                 continue;
             }
@@ -163,24 +169,17 @@ export class ObjectGraphUtils {
                     obj[property] = this.JSON_CONSTANTS_PREFIXES_DATE + propertyValue.getTime().toString()
                 }
                 else {
-                    let transformedObj = objMap.get(propertyValue)
-                    if(transformedObj !== undefined) {
-                        obj[property] = this.JSON_CONSTANTS_PREFIXES_ID + (transformedObj.id)
-                        transformedObj.refCount++
-                    }
-                    else {
-                        this.jsonify_recurse(
-                                new PropertyPathTreeNode(
-                                        objPath,
-                                        property
-                                    ),
-                                {
-                                    obj: obj,
-                                    key: property
-                                },
-                                objMap
-                            )
-                    }
+                    this.jsonify_recurse(
+                            new PropertyPathTreeNode(
+                                    objPath,
+                                    property
+                                ),
+                            {
+                                obj: obj,
+                                key: property
+                            },
+                            objMap
+                        )
                 }
             }
         }
@@ -200,10 +199,10 @@ export class ObjectGraphUtils {
             [ObjectGraphUtils.JSON_CONSTANTS_KEYS_OBJMAP]: { [id: number]: string }
         } = json
 
-        let finalFillIn: {
+        let finalFillIn: (({
                 pathToFillIn: PropertyPathTreeNode,
                 value_referencedObjID: number
-            }[] = []
+            }) | (() => void))[] = []
 
         let rootGraphContainer = { graph: root }
 
@@ -217,19 +216,28 @@ export class ObjectGraphUtils {
             )
 
         const objMap = new Map<number, object>()
-        for(const { pathToFillIn, value_referencedObjID } of finalFillIn) {
-            let value_referencedObj = objMap.get(value_referencedObjID)
-            if(value_referencedObj === undefined) {
-                const value_path = PropertyPathTreeNode.parse(objMap_json[value_referencedObjID])
-                value_referencedObj = PropertyPathTreeNode.getValue(root, value_path)
-                objMap.set(value_referencedObjID, value_referencedObj!)
-            }
+        for(const fillIn of finalFillIn) {
+            const fillInStructure = <{
+                    pathToFillIn: PropertyPathTreeNode,
+                    value_referencedObjID: number
+                }><unknown>fillIn
+            if(fillInStructure.pathToFillIn !== undefined) {
+                let value_referencedObj = objMap.get(fillInStructure.value_referencedObjID)
+                if(value_referencedObj === undefined) {
+                    const value_path = PropertyPathTreeNode.parse(objMap_json[fillInStructure.value_referencedObjID])
+                    value_referencedObj = PropertyPathTreeNode.getValue(root, value_path)
+                    objMap.set(fillInStructure.value_referencedObjID, value_referencedObj!)
+                }
 
-            PropertyPathTreeNode.setValue(
-                    root,
-                    pathToFillIn,
-                    value_referencedObj!
-                )
+                PropertyPathTreeNode.setValue(
+                        root,
+                        fillInStructure.pathToFillIn,
+                        value_referencedObj!
+                    )
+            }
+            else {
+                (<(() => void)>fillIn)()
+            }
         }
 
         return rootGraphContainer.graph
@@ -238,10 +246,10 @@ export class ObjectGraphUtils {
     private static graphify_recurse(
             node: ObjKey,
             currentPath: ReferencePathTreeNode,
-            finalFillIn: {
+            finalFillIn: (({
                 pathToFillIn: PropertyPathTreeNode,
                 value_referencedObjID: number
-            }[]
+            }) | (() => void))[]
         ): void {
         let obj = node.obj[node.key]
         
@@ -253,45 +261,40 @@ export class ObjectGraphUtils {
         const type = obj[this.JSON_CONSTANTS_KEYS_OBJTYPE]
         if(type !== undefined) {
             switch(type) {
-                case this.JSON_CONSTANTS_OBJTYPE_ARRAY:
-                    {
-                        let arr = new Array(+obj[this.JSON_CONSTANTS_KEYS_LENGTH])
-                        for(let i = 0; i < arr.length; i++) {
-                            arr[i] = obj[i]
-                        }
-                        obj = arr
-                        node.obj[node.key] = arr
-                    }
-                    break;
+                case this.JSON_CONSTANTS_OBJTYPE_SET:
+                    break
+                case this.JSON_CONSTANTS_OBJTYPE_MAP:
+                    break
 
                 default:
                     throw new Error("unrecognized object type")
             }
         }
+        else {
+            let redeclaredObj: any = null
+            for(const property of Object.keys(obj)) {
+                if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE)) {
+                    if(!redeclaredObj) { redeclaredObj = {} }
 
-        let redeclaredObj: any = null
-        for(const property of Object.keys(obj)) {
-            if(property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE)) {
-                if(!redeclaredObj) { redeclaredObj = {} }
-
-                redeclaredObj[property.substring(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE.length)] = obj[property]
-            }
-        }
-
-        if(redeclaredObj) {
-            redeclaredObj = {
-                ...redeclaredObj,
-                ...Object.fromEntries(
-                        Object.entries(obj)
-                        .filter(
-                                ([property, value]) =>
-                                    !property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)
-                            )
-                    )
+                    redeclaredObj[property.substring(this.JSON_CONSTANTS_KEYS_PREFIX_ESCAPE.length)] = obj[property]
+                }
             }
 
-            obj = redeclaredObj
-            node.obj[node.key] = obj
+            if(redeclaredObj) {
+                redeclaredObj = {
+                    ...redeclaredObj,
+                    ...Object.fromEntries(
+                            Object.entries(obj)
+                            .filter(
+                                    ([property, value]) =>
+                                        !property.startsWith(this.JSON_CONSTANTS_KEYS_PREFIX)
+                                )
+                        )
+                }
+
+                obj = redeclaredObj
+                node.obj[node.key] = obj
+            }
         }
 
         for(const property of Object.keys(obj)) {
@@ -329,6 +332,17 @@ export class ObjectGraphUtils {
                         propertyPath,
                         finalFillIn
                     )
+            }
+        }
+
+        if(type !== undefined) {
+            switch(type) {
+                case this.JSON_CONSTANTS_OBJTYPE_SET:
+                    finalFillIn.push(() => node.obj[node.key] = new Set(obj["values"]))
+                    break
+                case this.JSON_CONSTANTS_OBJTYPE_MAP:
+                    finalFillIn.push(() => node.obj[node.key] = new Map(obj["entries"]))
+                    break
             }
         }
     }
