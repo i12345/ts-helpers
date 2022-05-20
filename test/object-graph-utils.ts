@@ -289,22 +289,9 @@ class ObjectGraphUtilsTest {
     }
 
     @test symbol_0() {
-        this.testSaveAndLoad(() => ({a: Symbol.iterator}))
-    }
-
-    @test symbol_1() {
-        this.testSaveAndLoad(() => ({a: Symbol.toStringTag}))
-    }
-
-    @test symbol_2() {
         const k = Symbol.for("k")
         
         this.testSaveAndLoad(() => ({a: k}))
-    }
-
-    @test symbol_3() {
-        const unkeyed = Symbol()
-        this.testSaveAndLoad(() => ({a: unkeyed}))
     }
 
     testSaveAndLoad<T extends object>(factory: () => T) {
